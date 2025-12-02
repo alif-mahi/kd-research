@@ -92,8 +92,8 @@ def process_images(input_csv, output_csv, output_base_dir):
     print(f"Saved processed images to '{output_base_dir}' and CSV to '{output_csv}'.")
 
 if __name__ == "__main__":
-    input_csv = 'dataframes/prototype.csv'
-    output_csv = 'dataframes/contrast_stretched.csv'
-    output_base_dir = 'datasets/contrast-stretched'
+    input_csv = '/mnt/c/Users/T2430451/data/dataframes/frame_labels.csv'
+    output_csv = '/mnt/c/Users/T2430451/data/dataframes/contrast_stretched.csv'
+    output_base_dir = '/mnt/c/Users/T2430451/data/datasets/contrast-stretched'
     
     process_images(input_csv, output_csv, output_base_dir)

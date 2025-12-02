@@ -115,8 +115,8 @@ def process_images(input_csv, output_csv, output_base_dir):
     print(f"Saved processed images to '{output_base_dir}' and CSV to '{output_csv}'.")
 
 if __name__ == "__main__":
-    input_csv = 'dataframes/clahe.csv'
-    output_csv = 'dataframes/adaptive_median.csv'
-    output_base_dir = 'datasets/adaptive-median'
+    input_csv = '/mnt/c/Users/T2430451/data/dataframes/clahe.csv'
+    output_csv = '/mnt/c/Users/T2430451/data/dataframes/adaptive_median.csv'
+    output_base_dir = '/mnt/c/Users/T2430451/data/datasets/adaptive-median'
     
     process_images(input_csv, output_csv, output_base_dir)

@@ -56,9 +56,9 @@ def generate_dataframe(base_path, output_csv):
     """Generates the dataframe by matching RGB, Thermal images and Labels."""
     
     # Define paths relative to base_path
-    rgb_path = os.path.join(base_path, "datasets/original/254p RGB Images")
-    ir_path = os.path.join(base_path, "datasets/original/254p Thermal Images")
-    label_file = os.path.join(base_path, "dataframes/label.txt")
+    rgb_path = os.path.join(base_path, "/mnt/c/Users/T2430451/data/datasets/original/254p RGB Images")
+    ir_path = os.path.join(base_path, "/mnt/c/Users/T2430451/data/datasets/original/254p Thermal Images")
+    label_file = os.path.join(base_path, "/mnt/c/Users/T2430451/data/dataframes/label.txt")
     
     # Step 1: Index frames
     print(f"Indexing RGB frames from {rgb_path}...")
@@ -108,7 +108,7 @@ def generate_dataframe(base_path, output_csv):
 def main():
     parser = argparse.ArgumentParser(description="Generate dataset DataFrame from images and labels.")
     parser.add_argument("--base_path", default=".", help="Base path of the project (default: current directory)")
-    parser.add_argument("--output", default="dataframes/frame_labels.csv", help="Output CSV path (default: dataframes/frame_labels.csv)")
+    parser.add_argument("--output", default="/mnt/c/Users/T2430451/data/dataframes/frame_labels.csv", help="Output CSV path (default: /mnt/c/Users/T2430451/data/dataframes/frame_labels.csv)")
     
     args = parser.parse_args()
     
