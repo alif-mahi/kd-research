@@ -1,5 +1,5 @@
 """
-Main training pipeline for knowledge distillation with multimodal teacher and RGB student.
+Main training pipeline for knowledge distillation with EfficientNet-B7 teacher and lightweight CNN student.
 Runs training across multiple random seeds for confidence intervals.
 """
 
@@ -20,7 +20,7 @@ from components.utils import (
     count_parameters, get_model_size, compute_confidence_intervals
 )
 from components.dataset import create_stratified_splits, create_dataloaders
-from models_arch import MultimodalResNet152
+from models_arch import MultimodalEfficientNetB7
 from components.student_model import LightweightStudentCNN
 from components.trainer import TeacherTrainer, StudentTrainer
 from components.evaluation import (
@@ -38,7 +38,7 @@ def train_single_seed(
     args: argparse.Namespace
 ) -> Dict:
     """
-    Train teacher and student for a single seed.
+    Train EfficientNet-B7 teacher and student for a single seed.
     
     Args:
         seed: Random seed
@@ -58,7 +58,7 @@ def train_single_seed(
     set_seed(seed)
     
     # Create output directories
-    paths = create_output_dirs(output_base, 'resnet152', seed)
+    paths = create_output_dirs(output_base, 'efficientnet-b7', seed)
     
     # Setup device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -100,13 +100,13 @@ def train_single_seed(
     )
     
     # =========================================================================
-    # TEACHER TRAINING
+    # TEACHER TRAINING (EfficientNet-B7)
     # =========================================================================
     print("\n" + "-"*80)
-    print("TEACHER TRAINING (Multimodal ResNet152)")
+    print("TEACHER TRAINING (Multimodal EfficientNet-B7)")
     print("-"*80)
     
-    teacher_model = MultimodalResNet152(num_classes=2, freeze_until='layer2')
+    teacher_model = MultimodalEfficientNetB7(num_classes=2, freeze_until_block=4)
     teacher_params = count_parameters(teacher_model)
     print(f"Teacher parameters: {teacher_params['total']:,} (trainable: {teacher_params['trainable']:,})")
     
@@ -142,7 +142,7 @@ def train_single_seed(
         teacher_train_hist,
         teacher_val_hist,
         os.path.join(paths['graphs'], 'teacher_training_curves.png'),
-        title=f'Teacher Training Curves (Seed {seed})'
+        title=f'EfficientNet-B7 Teacher Training (Seed {seed})'
     )
     
     # =========================================================================
@@ -237,7 +237,7 @@ def train_single_seed(
     results = {}
     
     # Evaluate Teacher
-    print("\nEvaluating Teacher Model...")
+    print("\nEvaluating EfficientNet-B7 Teacher Model...")
     teacher_model.load_state_dict(torch.load(teacher_save_path))
     teacher_metrics = evaluate_model(
         teacher_model,
@@ -350,7 +350,7 @@ def train_single_seed(
         teacher_labels,
         os.path.join(paths['graphs'], 'tsne_teacher.png'),
         method='tsne',
-        title=f'Teacher Model TSNE (Seed {seed})'
+        title=f'EfficientNet-B7 Teacher TSNE (Seed {seed})'
     )
     
     plot_embeddings(
@@ -358,7 +358,7 @@ def train_single_seed(
         teacher_labels,
         os.path.join(paths['graphs'], 'umap_teacher.png'),
         method='umap',
-        title=f'Teacher Model UMAP (Seed {seed})'
+        title=f'EfficientNet-B7 Teacher UMAP (Seed {seed})'
     )
     
     # Student embeddings
@@ -397,7 +397,7 @@ def train_single_seed(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Knowledge Distillation Pipeline for Fire/Smoke Detection'
+        description='Knowledge Distillation Pipeline with EfficientNet-B7 Teacher'
     )
     
     # Data arguments
@@ -445,7 +445,7 @@ def main():
     args = parser.parse_args()
     
     print("="*80)
-    print("KNOWLEDGE DISTILLATION PIPELINE")
+    print("KNOWLEDGE DISTILLATION PIPELINE - EFFICIENTNET-B7 TEACHER")
     print("="*80)
     print(f"CSV: {args.csv}")
     print(f"Seeds: {args.seeds}")
@@ -494,12 +494,13 @@ def main():
             'metadata': {
                 'num_seeds': len(args.seeds),
                 'seeds': args.seeds,
-                'successful_runs': len(all_results)
+                'successful_runs': len(all_results),
+                'teacher_architecture': 'EfficientNet-B7'
             }
         }
         
         # Save aggregated results
-        aggregated_path = os.path.join(args.output, 'metrics', 'resnet152', 'aggregated_results.json')
+        aggregated_path = os.path.join(args.output, 'metrics', 'efficientnet-b7', 'aggregated_results.json')
         save_json(aggregated, aggregated_path)
         
         print(f"\n✓ Aggregated results saved to {aggregated_path}")

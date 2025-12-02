@@ -9,3 +9,4 @@ umap-learn>=0.5.3
 matplotlib>=3.7.0
 seaborn>=0.12.0
 Pillow>=9.5.0
+timm>=0.9.0
