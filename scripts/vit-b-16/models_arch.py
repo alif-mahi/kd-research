@@ -9,6 +9,13 @@ from torchvision import models
 from typing import Tuple
 import copy
 
+# Try to import new weights API, fall back to old API if not available
+try:
+    from torchvision.models import ViT_B_16_Weights
+    WEIGHTS_API_AVAILABLE = True
+except ImportError:
+    WEIGHTS_API_AVAILABLE = False
+
 
 class MultimodalViTB16(nn.Module):
     """
@@ -35,7 +42,12 @@ class MultimodalViTB16(nn.Module):
         super(MultimodalViTB16, self).__init__()
         
         # Load pretrained ViT-B/16
-        vit_pretrained = models.vit_b_16(pretrained=True)
+        # Support both old and new torchvision APIs
+        if WEIGHTS_API_AVAILABLE:
+            vit_pretrained = models.vit_b_16(weights=ViT_B_16_Weights.IMAGENET1K_V1)
+        else:
+            # Fall back to old API for torchvision < 0.13
+            vit_pretrained = models.vit_b_16(pretrained=True)
         
         # Separate patch embeddings for RGB and IR
         self.rgb_patch_embed = vit_pretrained.conv_proj

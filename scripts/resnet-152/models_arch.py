@@ -13,6 +13,13 @@ import torch.nn.functional as F
 from torchvision import models
 from typing import Tuple, Optional
 
+# Try to import new weights API, fall back to old API if not available
+try:
+    from torchvision.models import ResNet152_Weights
+    WEIGHTS_API_AVAILABLE = True
+except ImportError:
+    WEIGHTS_API_AVAILABLE = False
+
 # Import shared student model
 from components.student_model import LightweightStudentCNN
 
@@ -37,8 +44,14 @@ class MultimodalResNet152(nn.Module):
         super(MultimodalResNet152, self).__init__()
         
         # Load pretrained ResNet152 for RGB branch
-        rgb_resnet = models.resnet152(pretrained=True)
-        ir_resnet = models.resnet152(pretrained=False)
+        # Support both old and new torchvision APIs
+        if WEIGHTS_API_AVAILABLE:
+            rgb_resnet = models.resnet152(weights=ResNet152_Weights.IMAGENET1K_V1)
+            ir_resnet = models.resnet152(weights=None)
+        else:
+            # Fall back to old API for torchvision < 0.13
+            rgb_resnet = models.resnet152(pretrained=True)
+            ir_resnet = models.resnet152(pretrained=False)
         
         # Extract layers (split before layer4 for late fusion)
         # ResNet structure: conv1 → bn1 → relu → maxpool → layer1 → layer2 → layer3 → layer4

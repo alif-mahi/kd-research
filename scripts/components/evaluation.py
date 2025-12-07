@@ -197,16 +197,23 @@ def plot_embeddings(
     class_names = ['No Fire, No Smoke', 'No Fire, Smoke', 'Fire, No Smoke', 'Fire, Smoke']
     colors = ['blue', 'orange', 'green', 'red']
     
+    # Debug: Print class distribution
+    unique_classes, class_counts = np.unique(combined_labels, return_counts=True)
+    print(f"\nClass distribution in {method.upper()} visualization:")
+    for cls, count in zip(unique_classes, class_counts):
+        print(f"  {class_names[cls]}: {count} samples ({count/len(combined_labels)*100:.1f}%)")
+    
     # Plot
     plt.figure(figsize=(12, 8))
     for i, (class_name, color) in enumerate(zip(class_names, colors)):
         mask = combined_labels == i
-        if mask.sum() > 0:
+        num_samples = mask.sum()
+        if num_samples > 0:
             plt.scatter(
                 embeddings[mask, 0],
                 embeddings[mask, 1],
                 c=color,
-                label=class_name,
+                label=f'{class_name} (n={num_samples})',
                 alpha=0.6,
                 s=30
             )

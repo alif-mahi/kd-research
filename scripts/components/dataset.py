@@ -120,60 +120,86 @@ class FireSmokeDataset(Dataset):
 def create_stratified_splits(
     csv_path: str,
     train_ratio: float = 0.7,
-    val_ratio: float = 0.3,
-    test_ratio: float = 0.3,
-    seed: int = 42
+    val_ratio: float = 0.15,  # Changed from 0.3 to 0.15 (absolute ratio)
+    test_ratio: float = 0.15,  # Changed from 0.3 to 0.15 (absolute ratio)
+    seed: int = 42,
+    use_video_aware: bool = True
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Create stratified train/val/test splits preserving class distribution.
     
-    Strategy:
-    1. Split into train (70%) and test (30%) based on combined label
-    2. Split train into train (70% of original) and val (30% of train = 21% of original)
+    ⚠️  IMPORTANT: For video frame datasets (like FLAME2), set use_video_aware=True
+    to prevent temporal leakage from consecutive frames.
     
     Args:
         csv_path: Path to CSV file
-        train_ratio: Ratio for initial train split (before val split)
-        val_ratio: Ratio to split from train set for validation
-        test_ratio: Ratio for test split
+        train_ratio: Absolute ratio for training set (default: 0.7 = 70%)
+        val_ratio: Absolute ratio for validation set (default: 0.15 = 15%)
+        test_ratio: Absolute ratio for test set (default: 0.15 = 15%)
         seed: Random seed
+        use_video_aware: If True, use video-aware splitting to prevent temporal leakage
+        
+    Note:
+        All ratios should sum to 1.0 (or close due to rounding).
+        Default: 70% train, 15% val, 15% test
         
     Returns:
         Tuple of (train_df, val_df, test_df)
     """
-    # Load dataframe
-    df = pd.read_csv(csv_path)
-    
-    # Create combined label for stratification (NN=0, YN=1, NY=2, YY=3)
-    df['combined_label'] = df['fire'].astype(int) * 2 + df['smoke'].astype(int)
-    
-    # First split: train+val (70%) vs test (30%)
-    train_val_df, test_df = train_test_split(
-        df,
-        test_size=test_ratio,
-        stratify=df['combined_label'],
-        random_state=seed
-    )
-    
-    # Second split: train (70% of train_val) vs val (30% of train_val)
-    train_df, val_df = train_test_split(
-        train_val_df,
-        test_size=val_ratio,
-        stratify=train_val_df['combined_label'],
-        random_state=seed
-    )
-    
-    # Remove temporary column
-    train_df = train_df.drop(columns=['combined_label'])
-    val_df = val_df.drop(columns=['combined_label'])
-    test_df = test_df.drop(columns=['combined_label'])
-    
-    print(f"Dataset split:")
-    print(f"  Train: {len(train_df)} samples ({len(train_df)/len(df)*100:.1f}%)")
-    print(f"  Val:   {len(val_df)} samples ({len(val_df)/len(df)*100:.1f}%)")
-    print(f"  Test:  {len(test_df)} samples ({len(test_df)/len(df)*100:.1f}%)")
-    
-    return train_df, val_df, test_df
+    if use_video_aware:
+        # Use video-aware splitting to prevent temporal leakage
+        from components.video_aware_split import create_video_aware_splits
+        
+        # All ratios are now absolute and should sum to ~1.0
+        # Default: train=0.7, val=0.15, test=0.15
+        
+        return create_video_aware_splits(
+            csv_path,
+            train_ratio=train_ratio,
+            val_ratio=val_ratio,
+            test_ratio=test_ratio,
+            seed=seed,
+            verbose=True
+        )
+    else:
+        # WARNING: This causes temporal leakage for video datasets!
+        print("⚠️  WARNING: Using frame-level random split.")
+        print("   This causes data leakage for video frame datasets!")
+        print("   Set use_video_aware=True to fix this.\n")
+        
+        # Load dataframe
+        df = pd.read_csv(csv_path)
+        
+        # Create combined label for stratification (NN=0, YN=1, NY=2, YY=3)
+        df['combined_label'] = df['fire'].astype(int) * 2 + df['smoke'].astype(int)
+        
+        # First split: train+val (70%) vs test (30%)
+        train_val_df, test_df = train_test_split(
+            df,
+            test_size=test_ratio,
+            stratify=df['combined_label'],
+            random_state=seed
+        )
+        
+        # Second split: train (70% of train_val) vs val (30% of train_val)
+        train_df, val_df = train_test_split(
+            train_val_df,
+            test_size=val_ratio,
+            stratify=train_val_df['combined_label'],
+            random_state=seed
+        )
+        
+        # Remove temporary column
+        train_df = train_df.drop(columns=['combined_label'])
+        val_df = val_df.drop(columns=['combined_label'])
+        test_df = test_df.drop(columns=['combined_label'])
+        
+        print(f"Dataset split:")
+        print(f"  Train: {len(train_df)} samples ({len(train_df)/len(df)*100:.1f}%)")
+        print(f"  Val:   {len(val_df)} samples ({len(val_df)/len(df)*100:.1f}%)")
+        print(f"  Test:  {len(test_df)} samples ({len(test_df)/len(df)*100:.1f}%)")
+        
+        return train_df, val_df, test_df
 
 
 def create_dataloaders(
@@ -202,12 +228,19 @@ def create_dataloaders(
     Returns:
         Dictionary with 'train', 'val', 'test' DataLoaders
     """
-    # Data augmentation for training
+    # Data augmentation for training (inspired by original FLAME2 authors)
     train_transform = None
     if augment_train:
         train_transform = transforms.Compose([
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            transforms.RandomRotation(degrees=15),  # Random rotation ±15°
+            transforms.ColorJitter(
+                brightness=0.3,    # Increased from 0.2
+                contrast=0.3,      # Increased from 0.2
+                saturation=0.3,    # Increased from 0.2
+                hue=0.1           # Added hue variation
+            ),
+            # Note: ToTensor and Normalize are applied in dataset class
         ])
     
     # Create datasets
@@ -261,8 +294,8 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--csv', type=str, default='dataframes/frame_labels_final.csv')
-    parser.add_argument('--base_path', type=str, default='/home/mahi/Code/repos/kd-research')
+    parser.add_argument('--csv', type=str, default='/mnt/c/Users/T2430451/data/dataframes/adaptive_median_gpu.csv')
+    parser.add_argument('--base_path', type=str, default='/mnt/c/Users/T2430451/data')
     parser.add_argument('--verify', action='store_true')
     args = parser.parse_args()
     

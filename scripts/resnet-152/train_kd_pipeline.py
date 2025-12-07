@@ -73,9 +73,9 @@ def train_single_seed(
     
     train_df, val_df, test_df = create_stratified_splits(
         csv_path,
-        train_ratio=0.7,
-        val_ratio=0.3,
-        test_ratio=0.3,
+        train_ratio=0.70,
+        val_ratio=0.15,
+        test_ratio=0.15,
         seed=seed
     )
     
@@ -287,10 +287,23 @@ def train_single_seed(
     # Evaluate Quantized
     if quantized_model is not None:
         print("\nEvaluating Quantized Student Model...")
+        # Quantized models only work on CPU
+        cpu_device = torch.device('cpu')
+        quantized_model = quantized_model.to(cpu_device)
+        
+        # Create CPU dataloader for quantized model
+        from torch.utils.data import DataLoader
+        cpu_test_loader = DataLoader(
+            student_loaders['test'].dataset,
+            batch_size=student_loaders['test'].batch_size,
+            shuffle=False,
+            num_workers=0  # Use 0 workers for CPU
+        )
+        
         quantized_metrics = evaluate_model(
             quantized_model,
-            student_loaders['test'],
-            device,
+            cpu_test_loader,
+            cpu_device,
             mode='rgb_only',
             desc='Testing Quantized'
         )
@@ -298,7 +311,7 @@ def train_single_seed(
             quantized_model,
             (1, 3, 224, 224),
             quantized_path,
-            device
+            cpu_device
         )
         quantized_metrics.update(quantized_efficiency)
         results['student_quantized'] = quantized_metrics
@@ -403,9 +416,9 @@ def main():
     # Data arguments
     parser.add_argument('--csv', type=str, required=True,
                         help='Path to CSV file with data')
-    parser.add_argument('--base_path', type=str, default='/home/mahi/Code/repos/kd-research',
+    parser.add_argument('--base_path', type=str, default='/mnt/c/Users/T2430451/data',
                         help='Base path for images')
-    parser.add_argument('--output', type=str, default='/home/mahi/Code/repos/kd-research',
+    parser.add_argument('--output', type=str, default='/mnt/c/Users/T2430451/data',
                         help='Output base directory')
     
     # Training arguments

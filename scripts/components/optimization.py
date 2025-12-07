@@ -18,7 +18,7 @@ def quantize_model(
     method: str = 'dynamic'
 ) -> nn.Module:
     """
-    Apply quantization to model.
+    Apply quantization to model using torchao.
     
     Args:
         model: PyTorch model to quantize
@@ -27,22 +27,30 @@ def quantize_model(
     Returns:
         Quantized model
     """
-    print(f"Applying {method} quantization...")
+    print(f"Applying {method} quantization with torchao...")
     
-    model_quantized = copy.deepcopy(model)
-    model_quantized.eval()
-    
-    if method == 'dynamic':
-        # Dynamic quantization: quantize weights and activations at runtime
-        # Targets Linear and Conv2d layers
-        model_quantized = torch.quantization.quantize_dynamic(
-            model_quantized,
-            {nn.Linear, nn.Conv2d},
-            dtype=torch.qint8
-        )
-        print("✓ Dynamic quantization applied")
-    
-    return model_quantized
+    try:
+        from torchao.quantization import quantize_, Int8DynamicActivationInt8WeightConfig
+        
+        # Create a copy and move to CPU (quantization only works on CPU)
+        model_quantized = copy.deepcopy(model)
+        model_quantized = model_quantized.cpu()
+        model_quantized.eval()
+        
+        if method == 'dynamic':
+            # Apply int8 dynamic quantization using new API
+            quantize_(model_quantized, Int8DynamicActivationInt8WeightConfig())
+            print("✓ Dynamic quantization applied with torchao")
+        
+        return model_quantized
+        
+    except ImportError:
+        print("Warning: torchao not installed. Skipping quantization.")
+        print("Install with: pip install torchao")
+        return None
+    except Exception as e:
+        print(f"Warning: Quantization failed: {e}")
+        return None
 
 
 def prune_model_structured(
@@ -253,7 +261,7 @@ if __name__ == "__main__":
     """Test optimization"""
     import argparse
     from models_arch import LightweightStudentCNN
-    from utils import count_parameters
+    from components.utils import count_parameters
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, help='Path to student model')
