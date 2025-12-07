@@ -45,69 +45,60 @@ class MultimodalSwinTiny(nn.Module):
         # Load pretrained Swin-T
         # Support both old and new torchvision APIs
         if WEIGHTS_API_AVAILABLE:
-            swin_pretrained = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
+            swin_rgb = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
         else:
             # Fall back to old API for torchvision < 0.13
-            swin_pretrained = models.swin_t(pretrained=True)
+            swin_rgb = models.swin_t(pretrained=True)
         
-        # Get features backbone
-        features = swin_pretrained.features
+        # RGB branch: use full pretrained Swin-T features
+        self.rgb_features = swin_rgb.features
+        self.rgb_norm = swin_rgb.norm
+        self.rgb_avgpool = swin_rgb.avgpool
         
-        # RGB branch: patch partition only (stage 0)
-        self.rgb_patch_partition = features[0]  # PatchEmbed: outputs 56 channels at 56x96 spatial
+        # IR branch: copy RGB architecture and weights
+        if WEIGHTS_API_AVAILABLE:
+            swin_ir = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
+        else:
+            swin_ir = models.swin_t(pretrained=True)
         
-        # IR branch: copy pretrained weights
-        self.ir_patch_partition = copy.deepcopy(features[0])
+        self.ir_features = swin_ir.features
+        self.ir_norm = swin_ir.norm
+        self.ir_avgpool = swin_ir.avgpool
         
-        # Fusion layer: concatenate features from both modalities
-        # After patch_partition: both have 56 channels (actual measured output)
-        # After concat: 112 channels
-        # The pretrained Swin-T patch embedding outputs 56 channels, not 96
-        # We need to project 112 → 96 to match stage 1 input
-        self.fusion_conv = nn.Sequential(
-            nn.Conv2d(112, 96, kernel_size=1, bias=False),
-            nn.BatchNorm2d(96),
-            nn.GELU()
-        )
-        
-        # Shared stages after fusion (all 4 stages)
-        self.stage1 = features[1]  # 96→192 channels, 56x56→28x28
-        self.stage2 = features[2]  # 192→384 channels, 28x28→14x14  
-        self.stage3 = features[3]  # 384→768 channels, 14x14→7x7
-        # Note: features[4] is usually a normalization layer, included via swin_pretrained.norm later
-        
-        # Normalization and classifier
-        self.norm = swin_pretrained.norm
-        self.avgpool = swin_pretrained.avgpool
-        self.fc = nn.Linear(768, num_classes)
-        
-        # Freeze early stages
+        # Freeze early stages of both branches
         self._freeze_stages(freeze_until_stage)
+        
+        # Fusion and classification
+        # Each branch outputs 768-dim features after avgpool
+        # Concatenate and classify
+        self.fusion = nn.Sequential(
+            nn.Linear(768 * 2, 768),
+            nn.ReLU(),
+            nn.Dropout(0.1)
+        )
+        self.fc = nn.Linear(768, num_classes)
     
     def _freeze_stages(self, freeze_until_stage: int):
-        """Freeze stages 0 to freeze_until_stage (inclusive)."""
-        # Stage 0 = patch partition (always freeze)
-        for param in self.rgb_patch_partition.parameters():
-            param.requires_grad = False
-        for param in self.ir_patch_partition.parameters():
-            param.requires_grad = False
+        """Freeze stages 0 to freeze_until_stage (inclusive) in both branches."""
+        # Swin features has multiple stages: [0] through [7] typically
+        # Stage mapping: 0-1 = early, 2-3 = mid-early, 4-5 = mid-late, 6-7 = late
+        # We'll freeze the first N sequential blocks in features
         
-        # Stages 1-3 are shared after fusion
-        if freeze_until_stage >= 1:
-            for param in self.stage1.parameters():
+        num_blocks_to_freeze = min(freeze_until_stage + 1, len(self.rgb_features))
+        
+        # Freeze RGB branch
+        for i in range(num_blocks_to_freeze):
+            for param in self.rgb_features[i].parameters():
                 param.requires_grad = False
         
-        if freeze_until_stage >= 2:
-            for param in self.stage2.parameters():
-                param.requires_grad = False
-        
-        if freeze_until_stage >= 3:
-            for param in self.stage3.parameters():
+        # Freeze IR branch  
+        for i in range(num_blocks_to_freeze):
+            for param in self.ir_features[i].parameters():
                 param.requires_grad = False
     
     def forward(self, rgb: torch.Tensor, ir: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass with early fusion after patch partition.
+        Forward pass with late fusion.
         
         Args:
             rgb: RGB images (B, 3, 224, 224)
@@ -116,63 +107,48 @@ class MultimodalSwinTiny(nn.Module):
         Returns:
             Logits (B, num_classes)
         """
-        # Process both branches through patch partition
-        rgb_x = self.rgb_patch_partition(rgb)  # (B, 96, 56, 56)
-        ir_x = self.ir_patch_partition(ir)  # (B, 96, 56, 56)
+        # Process each modality through its own Swin branch
+        rgb_x = self.rgb_features(rgb)  # (B, C, H, W)
+        rgb_x = rgb_x.permute(0, 2, 3, 1)  # (B, H, W, C)
+        rgb_x = self.rgb_norm(rgb_x)  # (B, H, W, C)
+        rgb_x = self.rgb_avgpool(rgb_x)  # (B, C)
+        rgb_x = torch.flatten(rgb_x, 1)  # (B, 768)
         
-        # Early fusion: concatenate features
-        fused = torch.cat([rgb_x, ir_x], dim=1)  # (B, 192, 56, 56)
+        ir_x = self.ir_features(ir)  # (B, C, H, W)
+        ir_x = ir_x.permute(0, 2, 3, 1)  # (B, H, W, C)
+        ir_x = self.ir_norm(ir_x)  # (B, H, W, C)
+        ir_x = self.ir_avgpool(ir_x)  # (B, C)
+        ir_x = torch.flatten(ir_x, 1)  # (B, 768)
         
-        # Reduce channels to match stage 1 input (96 channels)
-        fused = self.fusion_conv(fused)  # (B, 96, 56, 56)
+        # Fuse features
+        fused = torch.cat([rgb_x, ir_x], dim=1)  # (B, 1536)
+        fused = self.fusion(fused)  # (B, 768)
         
-        # Shared stages
-        x = self.stage1(fused)  # (B, 192, 28, 28)
-        x = self.stage2(x)  # (B, 384, 14, 14)
-        x = self.stage3(x)  # (B, 768, 7, 7)
+        # Classification
+        output = self.fc(fused)  # (B, num_classes)
         
-        # Swin outputs are in (B, C, H, W) format from the feature stages
-        # But the norm layer expects (B, H, W, C) - need to permute
-        # However, stage3 should output (B, H, W, C) already if using proper Swin blocks
-        # Let's check the actual output format and handle accordingly
-        
-        # The issue is that features[3] outputs (B, C, H, W) but norm expects (B, H*W, C)
-        # We need to permute and reshape
-        B, C, H, W = x.shape
-        x = x.permute(0, 2, 3, 1).contiguous()  # (B, H, W, C)
-        x = x.view(B, H*W, C)  # (B, H*W, C) = (B, 49, 768)
-        
-        # Classification  
-        x = self.norm(x)  # (B, 49, 768)
-        x = x.mean(dim=1)  # Global average pooling: (B, 768)
-        x = self.fc(x)
-        
-        return x
+        return output
     
     def get_features(self, rgb: torch.Tensor, ir: torch.Tensor) -> torch.Tensor:
         """Extract features from penultimate layer for visualization."""
-        # Process both branches through patch partition
-        rgb_x = self.rgb_patch_partition(rgb)
-        ir_x = self.ir_patch_partition(ir)
+        # Process each modality
+        rgb_x = self.rgb_features(rgb)
+        rgb_x = rgb_x.permute(0, 2, 3, 1)
+        rgb_x = self.rgb_norm(rgb_x)
+        rgb_x = self.rgb_avgpool(rgb_x)
+        rgb_x = torch.flatten(rgb_x, 1)
         
-        # Fuse and process through shared stages
+        ir_x = self.ir_features(ir)
+        ir_x = ir_x.permute(0, 2, 3, 1)
+        ir_x = self.ir_norm(ir_x)
+        ir_x = self.ir_avgpool(ir_x)
+        ir_x = torch.flatten(ir_x, 1)
+        
+        # Fuse and return
         fused = torch.cat([rgb_x, ir_x], dim=1)
-        fused = self.fusion_conv(fused)
+        features = self.fusion(fused)
         
-        x = self.stage1(fused)
-        x = self.stage2(x)
-        x = self.stage3(x)
-        
-        # Permute and reshape to match norm layer expectations
-        B, C, H, W = x.shape
-        x = x.permute(0, 2, 3, 1).contiguous()
-        x = x.view(B, H*W, C)
-        
-        # Return features before classifier
-        x = self.norm(x)
-        x = x.mean(dim=1)  # Global average pooling
-        
-        return x
+        return features
 
 
 if __name__ == "__main__":
