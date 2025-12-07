@@ -9,11 +9,11 @@ import os
 # KAGGLE PATHS (automatically set by Kaggle environment)
 # ============================================================================
 
-# Input dataset path (read-only)
+# Input dataset path (read-only) - images are here
 KAGGLE_INPUT_DIR = "/kaggle/input/flame2/adaptive-median-gpu"
 
-# CSV file path
-CSV_PATH = os.path.join(KAGGLE_INPUT_DIR, "adaptive_median_gpu.csv")
+# CSV file path - CSV is in working directory
+CSV_PATH = "/kaggle/working/kd-research/dataframes/adaptive_median_gpu.csv"
 
 # Base path for images (parent of RGB and IR folders)
 BASE_PATH = KAGGLE_INPUT_DIR
