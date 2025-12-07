@@ -71,17 +71,19 @@ def run_training(teacher_name: str, loss_variant: str):
     print(f"Script: {script_path}")
     print(f"{'='*70}\n")
     
-    # Build command
+    # Build command with correct argument names
     cmd = [
         'python', script_path,
         '--csv', CSV_PATH,
         '--base_path', BASE_PATH,
-        '--output_dir', OUTPUT_DIR,
+        '--output', OUTPUT_DIR,  # Changed from --output_dir
         '--seeds'] + [str(s) for s in SEEDS] + [
-        '--teacher_epochs', str(TEACHER_EPOCHS),
-        '--student_epochs', str(STUDENT_EPOCHS),
+        '--epochs_teacher', str(TEACHER_EPOCHS),  # Changed from --teacher_epochs
+        '--epochs_student', str(STUDENT_EPOCHS),  # Changed from --student_epochs
         '--batch_size', str(BATCH_SIZE),
-        '--temperature', str(TEMPERATURE)
+        '--kd_temperature', str(TEMPERATURE),  # Changed from --temperature
+        '--patience_teacher', str(PATIENCE),
+        '--patience_student', str(PATIENCE)
     ]
     
     print(f"Command: {' '.join(cmd)}\n")
