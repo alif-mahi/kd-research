@@ -45,32 +45,26 @@ class MultimodalSwinTiny(nn.Module):
         # Load pretrained Swin-T
         # Support both old and new torchvision APIs
         if WEIGHTS_API_AVAILABLE:
-            swin_rgb = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
+            self.rgb_swin = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
         else:
             # Fall back to old API for torchvision < 0.13
-            swin_rgb = models.swin_t(pretrained=True)
-        
-        # RGB branch: use full pretrained Swin-T features
-        self.rgb_features = swin_rgb.features
-        self.rgb_norm = swin_rgb.norm
-        self.rgb_avgpool = swin_rgb.avgpool
+            self.rgb_swin = models.swin_t(pretrained=True)
         
         # IR branch: copy RGB architecture and weights
         if WEIGHTS_API_AVAILABLE:
-            swin_ir = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
+            self.ir_swin = models.swin_t(weights=Swin_T_Weights.IMAGENET1K_V1)
         else:
-            swin_ir = models.swin_t(pretrained=True)
+            self.ir_swin = models.swin_t(pretrained=True)
         
-        self.ir_features = swin_ir.features
-        self.ir_norm = swin_ir.norm
-        self.ir_avgpool = swin_ir.avgpool
+        # Replace the classification heads with identity to get features
+        self.rgb_swin.head = nn.Identity()
+        self.ir_swin.head = nn.Identity()
         
         # Freeze early stages of both branches
         self._freeze_stages(freeze_until_stage)
         
         # Fusion and classification
-        # Each branch outputs 768-dim features after avgpool
-        # Concatenate and classify
+        # Each Swin outputs 768-dim features
         self.fusion = nn.Sequential(
             nn.Linear(768 * 2, 768),
             nn.ReLU(),
@@ -80,20 +74,17 @@ class MultimodalSwinTiny(nn.Module):
     
     def _freeze_stages(self, freeze_until_stage: int):
         """Freeze stages 0 to freeze_until_stage (inclusive) in both branches."""
-        # Swin features has multiple stages: [0] through [7] typically
-        # Stage mapping: 0-1 = early, 2-3 = mid-early, 4-5 = mid-late, 6-7 = late
-        # We'll freeze the first N sequential blocks in features
-        
-        num_blocks_to_freeze = min(freeze_until_stage + 1, len(self.rgb_features))
+        # Freeze early feature extraction stages
+        num_blocks_to_freeze = min(freeze_until_stage + 1, len(self.rgb_swin.features))
         
         # Freeze RGB branch
         for i in range(num_blocks_to_freeze):
-            for param in self.rgb_features[i].parameters():
+            for param in self.rgb_swin.features[i].parameters():
                 param.requires_grad = False
         
         # Freeze IR branch  
         for i in range(num_blocks_to_freeze):
-            for param in self.ir_features[i].parameters():
+            for param in self.ir_swin.features[i].parameters():
                 param.requires_grad = False
     
     def forward(self, rgb: torch.Tensor, ir: torch.Tensor) -> torch.Tensor:
@@ -107,18 +98,9 @@ class MultimodalSwinTiny(nn.Module):
         Returns:
             Logits (B, num_classes)
         """
-        # Process each modality through its own Swin branch
-        rgb_x = self.rgb_features(rgb)  # (B, C, H, W)
-        rgb_x = rgb_x.permute(0, 2, 3, 1)  # (B, H, W, C)
-        rgb_x = self.rgb_norm(rgb_x)  # (B, H, W, C)
-        rgb_x = self.rgb_avgpool(rgb_x)  # (B, C)
-        rgb_x = torch.flatten(rgb_x, 1)  # (B, 768)
-        
-        ir_x = self.ir_features(ir)  # (B, C, H, W)
-        ir_x = ir_x.permute(0, 2, 3, 1)  # (B, H, W, C)
-        ir_x = self.ir_norm(ir_x)  # (B, H, W, C)
-        ir_x = self.ir_avgpool(ir_x)  # (B, C)
-        ir_x = torch.flatten(ir_x, 1)  # (B, 768)
+        # Process each modality through its own Swin (returns 768-dim features)
+        rgb_x = self.rgb_swin(rgb)  # (B, 768)
+        ir_x = self.ir_swin(ir)     # (B, 768)
         
         # Fuse features
         fused = torch.cat([rgb_x, ir_x], dim=1)  # (B, 1536)
@@ -132,17 +114,8 @@ class MultimodalSwinTiny(nn.Module):
     def get_features(self, rgb: torch.Tensor, ir: torch.Tensor) -> torch.Tensor:
         """Extract features from penultimate layer for visualization."""
         # Process each modality
-        rgb_x = self.rgb_features(rgb)
-        rgb_x = rgb_x.permute(0, 2, 3, 1)
-        rgb_x = self.rgb_norm(rgb_x)
-        rgb_x = self.rgb_avgpool(rgb_x)
-        rgb_x = torch.flatten(rgb_x, 1)
-        
-        ir_x = self.ir_features(ir)
-        ir_x = ir_x.permute(0, 2, 3, 1)
-        ir_x = self.ir_norm(ir_x)
-        ir_x = self.ir_avgpool(ir_x)
-        ir_x = torch.flatten(ir_x, 1)
+        rgb_x = self.rgb_swin(rgb)  # (B, 768)
+        ir_x = self.ir_swin(ir)     # (B, 768)
         
         # Fuse and return
         fused = torch.cat([rgb_x, ir_x], dim=1)
