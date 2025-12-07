@@ -131,10 +131,20 @@ class MultimodalSwinTiny(nn.Module):
         x = self.stage2(x)  # (B, 384, 14, 14)
         x = self.stage3(x)  # (B, 768, 7, 7)
         
-        # Classification
-        x = self.norm(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
+        # Swin outputs are in (B, C, H, W) format from the feature stages
+        # But the norm layer expects (B, H, W, C) - need to permute
+        # However, stage3 should output (B, H, W, C) already if using proper Swin blocks
+        # Let's check the actual output format and handle accordingly
+        
+        # The issue is that features[3] outputs (B, C, H, W) but norm expects (B, H*W, C)
+        # We need to permute and reshape
+        B, C, H, W = x.shape
+        x = x.permute(0, 2, 3, 1).contiguous()  # (B, H, W, C)
+        x = x.view(B, H*W, C)  # (B, H*W, C) = (B, 49, 768)
+        
+        # Classification  
+        x = self.norm(x)  # (B, 49, 768)
+        x = x.mean(dim=1)  # Global average pooling: (B, 768)
         x = self.fc(x)
         
         return x
@@ -153,10 +163,14 @@ class MultimodalSwinTiny(nn.Module):
         x = self.stage2(x)
         x = self.stage3(x)
         
+        # Permute and reshape to match norm layer expectations
+        B, C, H, W = x.shape
+        x = x.permute(0, 2, 3, 1).contiguous()
+        x = x.view(B, H*W, C)
+        
         # Return features before classifier
         x = self.norm(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
+        x = x.mean(dim=1)  # Global average pooling
         
         return x
 
