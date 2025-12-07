@@ -53,10 +53,17 @@ def run_training(teacher_name: str, loss_variant: str):
     
     teacher_dir = teacher_dir_map[teacher_name]
     script_name = script_map[loss_variant]
-    script_path = os.path.join('scripts', teacher_dir, script_name)
+    
+    # Construct absolute path to script
+    # On Kaggle, the repository should be at /kaggle/working/kd-research
+    repo_root = '/kaggle/working/kd-research' if os.path.exists('/kaggle/working/kd-research') else os.getcwd()
+    script_path = os.path.join(repo_root, 'scripts', teacher_dir, script_name)
     
     if not os.path.exists(script_path):
         print(f"Error: Training script not found: {script_path}")
+        print(f"  Repository root: {repo_root}")
+        print(f"  Looking for: scripts/{teacher_dir}/{script_name}")
+        print(f"\\nMake sure your kd-research repository is uploaded to /kaggle/working/kd-research")
         return
     
     print(f"\n{'='*70}")

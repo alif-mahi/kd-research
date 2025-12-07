@@ -61,7 +61,7 @@ STUDENT_EPOCHS = 30
 TEMPERATURE = 2.0
 
 # Early stopping
-PATIENCE = 5
+PATIENCE = 999
 
 # Learning rate
 TEACHER_LR = 1e-4
