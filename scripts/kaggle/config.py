@@ -10,17 +10,17 @@ import os
 # ============================================================================
 
 # Input dataset path (read-only) - images are here
-KAGGLE_INPUT_DIR = "/kaggle/input/flame2/adaptive-median-gpu"
+KAGGLE_INPUT_DIR = "/kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu"
 
 # CSV file path - CSV is in working directory
 CSV_PATH = "/kaggle/working/kd-research/dataframes/adaptive_median_gpu.csv"
 
-# Base path for images (parent of RGB and IR folders)
+# Base path for images (parent of RGB and Thermal folders)
 BASE_PATH = KAGGLE_INPUT_DIR
 
-# RGB and IR image directories (for reference)
+# RGB and Thermal image directories (for reference)
 RGB_DIR = os.path.join(BASE_PATH, "254p RGB Images")
-IR_DIR = os.path.join(BASE_PATH, "254p IR Images")
+IR_DIR = os.path.join(BASE_PATH, "254p Thermal Images")
 
 # ============================================================================
 # OUTPUT PATHS (Kaggle working directory - persisted after session)

@@ -62,8 +62,8 @@ def convert_paths_to_kaggle(input_csv: str, output_csv: str):
         'C:\\Users\\T2430451\\data',
     ]
     
-    # Kaggle target path
-    kaggle_base = '/kaggle/input/flame2/adaptive-median-gpu'
+    # Kaggle target path (note: nested adaptive-median-gpu directory)
+    kaggle_base = '/kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu'
     
     # Convert paths
     print("\nConverting paths...")
