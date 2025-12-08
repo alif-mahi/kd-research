@@ -12,7 +12,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import wilcoxon, mcnemar
+from scipy.stats import wilcoxon
+from statsmodels.stats.contingency_tables import mcnemar
 from sklearn.metrics import cohen_kappa_score
 from typing import Dict, Tuple
 
