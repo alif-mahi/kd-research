@@ -138,7 +138,7 @@ def wilcoxon_test_metric(
         'p_value': float(p_value),
         'effect_size': float(effect_size),
         'effect_interpretation': effect_interpretation,
-        'significant': significant,
+        'significant': bool(significant),  # Convert numpy bool to Python bool
         'alpha': alpha,
         'interpretation': direction,
         'teacher_mean': float(np.mean(teacher_metric)),
