@@ -63,11 +63,11 @@ def import_model_class(module_path: str, project_root: str = None):
     except ImportError as e:
         # Try alternative import method - direct file import
         # Navigate to the file location
-        file_path = os.path.join(PROJECT_ROOT, *actual_parts[:-1], actual_parts[-1] + '.py')
+        file_path = os.path.join(project_root, *actual_parts[:-1], actual_parts[-1] + '.py')
         if os.path.exists(file_path):
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(module_str, file_path)
-            module = importlib.util.module_from_spec(spec)
+            import importlib.util as imutil
+            spec = imutil.spec_from_file_location(module_str, file_path)
+            module = imutil.module_from_spec(spec)
             sys.modules[module_str] = module
             spec.loader.exec_module(module)
         else:
