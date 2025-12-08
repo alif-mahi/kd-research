@@ -14,14 +14,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-# Add project root to path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-from statistical_testing.config import *
-from statistical_testing.model_loader import load_teacher_model, load_student_model
-from scripts.components.dataset import create_stratified_splits, FireSmokeDataset
+# Note: Project root will be passed as argument for Kaggle compatibility
+# No fixed imports from config or hardcoded paths
 
 
 def evaluate_teacher_model(
@@ -207,21 +201,54 @@ def main():
     parser.add_argument('--teacher_path', type=str, required=True, help='Path to teacher .pth file')
     parser.add_argument('--student_path', type=str, required=True, help='Path to student .pth file')
     parser.add_argument('--teacher_arch', type=str, required=True,
-                        choices=list(TEACHER_ARCHITECTURES.keys()),
+                        choices=['resnet-152', 'efficientnet-b7', 'swin-tiny', 'vit-b-16'],
                         help='Teacher architecture')
-    parser.add_argument('--csv_path', type=str, default=DEFAULT_CSV_PATH,
+    parser.add_argument('--csv_path', type=str, required=True,
                         help='Path to CSV file')
-    parser.add_argument('--base_path', type=str, default=DEFAULT_BASE_PATH,
+    parser.add_argument('--base_path', type=str, default='',
                         help='Base path for images')
-    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE,
+    
+    # Path arguments for Kaggle compatibility
+    parser.add_argument('--project_root', type=str, default=None,
+                        help='Root directory containing scripts folder (default: auto-detect)')
+    parser.add_argument('--output_dir', type=str, default='./results',
+                        help='Output directory for predictions (default: ./results)')
+    
+    # Evaluation settings
+    parser.add_argument('--batch_size', type=int, default=64,
                         help='Batch size for evaluation')
-    parser.add_argument('--device', type=str, default=DEVICE,
+    parser.add_argument('--device', type=str, default='cuda',
                         help='Device (cuda or cpu)')
-    parser.add_argument('--num_workers', type=int, default=NUM_WORKERS,
+    parser.add_argument('--num_workers', type=int, default=4,
                         help='Number of workers for data loading')
+    
+    # Dataset split settings
+    parser.add_argument('--train_ratio', type=float, default=0.7,
+                        help='Training set ratio')
+    parser.add_argument('--val_ratio', type=float, default=0.15,
+                        help='Validation set ratio')
+    parser.add_argument('--test_ratio', type=float, default=0.15,
+                        help='Test set ratio')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for splitting')
+    parser.add_argument('--use_video_aware', action='store_true', default=True,
+                        help='Use video-aware splitting (recommended for FLAME2)')
+    
+    # Output naming
     parser.add_argument('--output_prefix', type=str, default='',
                         help='Prefix for output files')
     args = parser.parse_args()
+    
+    # Import here to allow custom project root
+    if args.project_root:
+        if args.project_root not in sys.path:
+            sys.path.insert(0, args.project_root)
+    
+    from statistical_testing.model_loader import load_teacher_model, load_student_model
+    from scripts.components.dataset import create_stratified_splits, FireSmokeDataset
+    
+    # Create output directory
+    os.makedirs(args.output_dir, exist_ok=True)
     
     print("=" * 70)
     print("MODEL EVALUATION")
@@ -229,6 +256,8 @@ def main():
     print(f"Teacher: {args.teacher_arch} ({args.teacher_path})")
     print(f"Student: {args.student_path}")
     print(f"Dataset: {args.csv_path}")
+    print(f"Output Dir: {args.output_dir}")
+    print(f"Project Root: {args.project_root if args.project_root else 'auto-detect'}")
     print(f"Device: {args.device}")
     print("=" * 70)
     
@@ -237,22 +266,24 @@ def main():
     teacher_model = load_teacher_model(
         args.teacher_path,
         args.teacher_arch,
-        device=args.device
+        device=args.device,
+        project_root=args.project_root
     )
     student_model = load_student_model(
         args.student_path,
-        device=args.device
+        device=args.device,
+        project_root=args.project_root
     )
     
     # Create test dataset
     print("\nCreating test dataset...")
     _, _, test_df = create_stratified_splits(
         args.csv_path,
-        train_ratio=TRAIN_RATIO,
-        val_ratio=VAL_RATIO,
-        test_ratio=TEST_RATIO,
-        seed=SEED,
-        use_video_aware=USE_VIDEO_AWARE
+        train_ratio=args.train_ratio,
+        val_ratio=args.val_ratio,
+        test_ratio=args.test_ratio,
+        seed=args.seed,
+        use_video_aware=args.use_video_aware
     )
     
     test_dataset = FireSmokeDataset(
@@ -303,12 +334,12 @@ def main():
     print("\n" + "=" * 70)
     print("Saving results...")
     
-    teacher_output = get_teacher_predictions_path(
-        f"{args.output_prefix}teacher" if args.output_prefix else "teacher"
-    )
-    student_output = get_student_predictions_path(
-        f"{args.output_prefix}student" if args.output_prefix else "student"
-    )
+    # Construct output paths
+    teacher_filename = f"{args.output_prefix}teacher_predictions.json" if args.output_prefix else "teacher_predictions.json"
+    student_filename = f"{args.output_prefix}student_predictions.json" if args.output_prefix else "student_predictions.json"
+    
+    teacher_output = os.path.join(args.output_dir, teacher_filename)
+    student_output = os.path.join(args.output_dir, student_filename)
     
     with open(teacher_output, 'w') as f:
         json.dump(teacher_results, f, indent=2)

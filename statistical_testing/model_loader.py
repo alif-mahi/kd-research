@@ -9,24 +9,37 @@ import torch
 import importlib
 from typing import Tuple
 
-# Add project root to path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# Default project root (can be overridden)
+DEFAULT_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-from statistical_testing.config import TEACHER_ARCHITECTURES, STUDENT_ARCHITECTURE
+# Teacher architectures mapping
+TEACHER_ARCHITECTURES = {
+    'resnet-152': 'scripts.resnet-152.models_arch.MultimodalResNet152',
+    'efficientnet-b7': 'scripts.efficientnet-b7.models_arch.MultimodalEfficientNetB7',
+    'swin-tiny': 'scripts.swin-tiny.models_arch.MultimodalSwinTiny',
+    'vit-b-16': 'scripts.vit-b-16.models_arch.MultimodalViTB16',
+}
+
+STUDENT_ARCHITECTURE = 'scripts.components.student_model.LightweightStudentCNN'
 
 
-def import_model_class(module_path: str):
+def import_model_class(module_path: str, project_root: str = None):
     """
     Dynamically import model class from module path.
     
     Args:
         module_path: Dot-separated module path (e.g., 'scripts.swin-tiny.models_arch.MultimodalSwinTiny')
+        project_root: Root directory containing the scripts folder (default: auto-detect)
         
     Returns:
         Model class
     """
+    if project_root is None:
+        project_root = DEFAULT_PROJECT_ROOT
+    
+    # Add project root to path if not already there
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
     parts = module_path.split('.')
     module_name = '.'.join(parts[:-1])
     class_name = parts[-1]
@@ -69,7 +82,8 @@ def load_teacher_model(
     teacher_path: str,
     teacher_arch: str,
     num_classes: int = 2,
-    device: str = 'cuda'
+    device: str = 'cuda',
+    project_root: str = None
 ) -> torch.nn.Module:
     """
     Load teacher model from .pth checkpoint.
@@ -79,6 +93,7 @@ def load_teacher_model(
         teacher_arch: Teacher architecture name (e.g., 'swin-tiny', 'resnet-152')
         num_classes: Number of output classes
         device: Device to load model on ('cuda' or 'cpu')
+        project_root: Root directory containing the scripts folder (default: auto-detect)
         
     Returns:
         Loaded teacher model in eval mode
@@ -96,7 +111,7 @@ def load_teacher_model(
     
     # Get model class
     model_path = TEACHER_ARCHITECTURES[teacher_arch]
-    ModelClass = import_model_class(model_path)
+    ModelClass = import_model_class(model_path, project_root)
     
     # Instantiate model
     model = ModelClass(num_classes=num_classes)
@@ -122,7 +137,8 @@ def load_teacher_model(
 def load_student_model(
     student_path: str,
     num_classes: int = 2,
-    device: str = 'cuda'
+    device: str = 'cuda',
+    project_root: str = None
 ) -> torch.nn.Module:
     """
     Load student model from .pth checkpoint.
@@ -131,6 +147,7 @@ def load_student_model(
         student_path: Path to student .pth file
         num_classes: Number of output classes
         device: Device to load model on ('cuda' or 'cpu')
+        project_root: Root directory containing the scripts folder (default: auto-detect)
         
     Returns:
         Loaded student model in eval mode
@@ -140,7 +157,7 @@ def load_student_model(
         raise FileNotFoundError(f"Student model not found: {student_path}")
     
     # Get model class
-    ModelClass = import_model_class(STUDENT_ARCHITECTURE)
+    ModelClass = import_model_class(STUDENT_ARCHITECTURE, project_root)
     
     # Instantiate model
     model = ModelClass(num_classes=num_classes)
@@ -168,7 +185,8 @@ def load_both_models(
     student_path: str,
     teacher_arch: str,
     num_classes: int = 2,
-    device: str = 'cuda'
+    device: str = 'cuda',
+    project_root: str = None
 ) -> Tuple[torch.nn.Module, torch.nn.Module]:
     """
     Load both teacher and student models.
@@ -179,12 +197,13 @@ def load_both_models(
         teacher_arch: Teacher architecture name
         num_classes: Number of output classes
         device: Device to load models on
+        project_root: Root directory containing the scripts folder (default: auto-detect)
         
     Returns:
         Tuple of (teacher_model, student_model)
     """
-    teacher_model = load_teacher_model(teacher_path, teacher_arch, num_classes, device)
-    student_model = load_student_model(student_path, num_classes, device)
+    teacher_model = load_teacher_model(teacher_path, teacher_arch, num_classes, device, project_root)
+    student_model = load_student_model(student_path, num_classes, device, project_root)
     
     return teacher_model, student_model
 

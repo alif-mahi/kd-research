@@ -10,6 +10,10 @@ This framework allows you to:
 - **Perform Wilcoxon signed-rank test** for statistical comparison
 - **Generate comprehensive visualizations** (box plots, violin plots, scatter plots, histograms)
 - **Calculate effect sizes** and interpret significance
+- **Full Kaggle compatibility** - all paths configurable via command-line arguments
+
+> [!NOTE]
+> **Kaggle Users**: See [KAGGLE_USAGE.md](file:///home/mahi/Code/repos/kd-research/statistical_testing/KAGGLE_USAGE.md) for Kaggle-specific examples and setup instructions.
 
 ## 🏗️ Directory Structure
 

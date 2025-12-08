@@ -15,12 +15,7 @@ import seaborn as sns
 from scipy.stats import wilcoxon
 from typing import Dict, Tuple
 
-# Add project root to path
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-from statistical_testing.config import *
+# Note: All paths configurable via command-line arguments for Kaggle compatibility
 
 
 def load_predictions(filepath: str) -> Dict:
@@ -170,7 +165,7 @@ def create_comparison_plots(
     """
     # Set style
     try:
-        plt.style.use(PLOT_STYLE)
+        plt.style.use('seaborn-v0_8-darkgrid')
     except:
         plt.style.use('ggplot')
     
@@ -201,7 +196,7 @@ def create_comparison_plots(
     axes[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'boxplot_comparison.png'), dpi=FIGURE_DPI, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, 'boxplot_comparison.png'), dpi=300, bbox_inches='tight')
     plt.close()
     print(f"✓ Saved: boxplot_comparison.png")
     
@@ -227,7 +222,7 @@ def create_comparison_plots(
     axes[1].grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'violin_comparison.png'), dpi=FIGURE_DPI, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, 'violin_comparison.png'), dpi=300, bbox_inches='tight')
     plt.close()
     print(f"✓ Saved: violin_comparison.png")
     
@@ -257,7 +252,7 @@ def create_comparison_plots(
     axes[1].set_ylim(-0.05, 1.05)
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'scatter_comparison.png'), dpi=FIGURE_DPI, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, 'scatter_comparison.png'), dpi=300, bbox_inches='tight')
     plt.close()
     print(f"✓ Saved: scatter_comparison.png")
     
@@ -286,7 +281,7 @@ def create_comparison_plots(
     axes[1].grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'difference_histogram.png'), dpi=FIGURE_DPI, bbox_inches='tight')
+    plt.savefig(os.path.join(output_dir, 'difference_histogram.png'), dpi=300, bbox_inches='tight')
     plt.close()
     print(f"✓ Saved: difference_histogram.png")
 
@@ -315,20 +310,32 @@ def print_results_summary(results: Dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Wilcoxon signed-rank test for model comparison")
-    parser.add_argument('--teacher_predictions', type=str, 
-                        default=get_teacher_predictions_path(),
+    parser.add_argument('--teacher_predictions', type=str, required=True,
                         help='Path to teacher predictions JSON')
-    parser.add_argument('--student_predictions', type=str,
-                        default=get_student_predictions_path(),
+    parser.add_argument('--student_predictions', type=str, required=True,
                         help='Path to student predictions JSON')
-    parser.add_argument('--output', type=str,
-                        default=get_comparison_results_path(),
-                        help='Path to save comparison results')
-    parser.add_argument('--alpha', type=float, default=ALPHA,
+    parser.add_argument('--output', type=str, default=None,
+                        help='Path to save comparison results JSON (default: same dir as teacher predictions)')
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help='Output directory for visualizations (default: same dir as predictions)')
+    parser.add_argument('--alpha', type=float, default=0.05,
                         help='Significance level')
     parser.add_argument('--no_plots', action='store_true',
                         help='Skip generating plots')
     args = parser.parse_args()
+    
+    # Determine output paths
+    if args.output is None:
+        # Default: put results in same directory as teacher predictions
+        pred_dir = os.path.dirname(args.teacher_predictions)
+        args.output = os.path.join(pred_dir, 'comparison_results.json')
+    
+    if args.output_dir is None:
+        # Default: use directory of teacher predictions
+        args.output_dir = os.path.dirname(args.teacher_predictions)
+    
+    # Create output directory if needed
+    os.makedirs(args.output_dir, exist_ok=True)
     
     print("=" * 70)
     print("WILCOXON SIGNED-RANK TEST")
@@ -385,8 +392,8 @@ def main():
     # Create visualizations
     if not args.no_plots:
         print("\nGenerating visualizations...")
-        create_comparison_plots(teacher_results, student_results, RESULTS_DIR)
-        print("✓ Visualizations saved to:", RESULTS_DIR)
+        create_comparison_plots(teacher_results, student_results, args.output_dir)
+        print(f"✓ Visualizations saved to: {args.output_dir}")
     
     print("\n" + "=" * 70)
     print("ANALYSIS COMPLETE")
