@@ -314,10 +314,14 @@ def main():
     # Create test dataset
     mode = 'multimodal' if args.model_type == 'teacher' else 'rgb_only'
     test_dataset = FireSmokeDataset(test_df, base_path=args.base_path, mode=mode)
+    
+    # IMPORTANT: Shuffle test loader to get representative samples across all classes
+    # Video-aware splitting creates contiguous blocks, so without shuffling,
+    # the first N samples might all be from one video with same labels
     test_loader = DataLoader(
         test_dataset,
         batch_size=args.batch_size,
-        shuffle=False,
+        shuffle=True,  # Shuffle to get representative sample
         num_workers=4,
         pin_memory=True
     )
