@@ -141,10 +141,15 @@ def create_class_labels(labels: np.ndarray) -> Tuple[np.ndarray, List[str]]:
         class_ids: Array of shape (N,) with class IDs (0-3)
         class_names: List of class names
     """
+    # IMPORTANT: Order matches evaluation.py formula: fire*2 + smoke
+    # 0 = 0*2 + 0 = No Fire, No Smoke
+    # 1 = 0*2 + 1 = No Fire, Smoke (Smoke Only)
+    # 2 = 1*2 + 0 = Fire, No Smoke (Fire Only)
+    # 3 = 1*2 + 1 = Fire, Smoke (Both)
     class_names = [
         'No Fire, No Smoke',
-        'Fire Only',
-        'Smoke Only', 
+        'Smoke Only',      # Changed: was incorrectly 'Fire Only'
+        'Fire Only',        # Changed: was incorrectly 'Smoke Only'
         'Fire & Smoke'
     ]
     
