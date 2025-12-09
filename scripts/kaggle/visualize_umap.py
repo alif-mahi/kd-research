@@ -181,7 +181,11 @@ def plot_umap(
     """
     print(f"Running UMAP with n_neighbors={n_neighbors}, min_dist={min_dist}, metric={metric}...")
     
-    # Run UMAP
+    # Ensure features are clean (no NaN/Inf) and in float64 for compatibility
+    features = np.asarray(features, dtype=np.float64)
+    features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
+    
+    # Run UMAP with compatibility handling
     reducer = umap.UMAP(
         n_components=2,
         n_neighbors=n_neighbors,
@@ -190,7 +194,17 @@ def plot_umap(
         random_state=random_state,
         verbose=True
     )
-    embeddings = reducer.fit_transform(features)
+    
+    try:
+        embeddings = reducer.fit_transform(features)
+    except TypeError as e:
+        if 'ensure_all_finite' in str(e):
+            print("Warning: UMAP/sklearn compatibility issue detected. Using workaround...")
+            # Workaround: use fit then transform separately
+            reducer.fit(features)
+            embeddings = reducer.transform(features)
+        else:
+            raise
     
     # Convert labels to class IDs
     class_ids, class_names = create_class_labels(labels)
