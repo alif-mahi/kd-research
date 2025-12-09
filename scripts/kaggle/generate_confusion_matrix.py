@@ -503,7 +503,7 @@ def main():
         true_classes,
         adjusted_preds,
         cm_path,
-        title=f"Student Model Confusion Matrix\\n(Accuracy: {args.target_accuracy*100:.1f}%, F1: {args.target_f1*100:.1f}%)"
+        title=f"Student Model Confusion Matrix (Accuracy: {args.target_accuracy*100:.1f}%, F1: {args.target_f1*100:.1f}%)"
     )
     
     # Save predictions log
