@@ -326,6 +326,23 @@ def main():
     
     print(f"✓ Loaded {len(test_dataset)} test samples\n")
     
+    # DEBUG: Check what's in test_df
+    print("=" * 70)
+    print("DEBUG: Inspecting test_df labels")
+    print("=" * 70)
+    print(f"test_df columns: {test_df.columns.tolist()}")
+    print(f"test_df shape: {test_df.shape}")
+    print(f"\nFirst 10 rows of test_df:")
+    print(test_df[['fire', 'smoke']].head(10))
+    print(f"\ntest_df['fire'] dtype: {test_df['fire'].dtype}")
+    print(f"test_df['smoke'] dtype: {test_df['smoke'].dtype}")
+    print(f"\nUnique values in test_df['fire']: {test_df['fire'].unique()}")
+    print(f"Unique values in test_df['smoke']: {test_df['smoke'].unique()}")
+    print(f"\nValue counts for fire:\n{test_df['fire'].value_counts()}")
+    print(f"\nValue counts for smoke:\n{test_df['smoke'].value_counts()}")
+    print("=" * 70)
+    print()
+    
     # Load model
     print("Loading model...")
     if args.model_type == 'teacher':
