@@ -114,6 +114,15 @@ def extract_features(model, dataloader, device, model_type='teacher', max_sample
     features = np.concatenate(all_features, axis=0)
     labels = np.concatenate(all_labels, axis=0)
     
+    # Debug: Print first few labels before truncation
+    print(f"\nDEBUG: Label extraction complete")
+    print(f"Total labels collected: {len(labels)}")
+    print(f"Label shape: {labels.shape}")
+    print(f"First 10 labels:\n{labels[:10]}")
+    print(f"Label dtype: {labels.dtype}")
+    print(f"Unique fire values: {np.unique(labels[:, 0])}")
+    print(f"Unique smoke values: {np.unique(labels[:, 1])}")
+    
     if max_samples:
         features = features[:max_samples]
         labels = labels[:max_samples]
