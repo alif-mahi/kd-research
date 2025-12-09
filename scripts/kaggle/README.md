@@ -411,6 +411,125 @@ for teacher in ['swin-tiny', 'vit-b-16']:
 
 ---
 
+## 🎨 Feature Embedding Visualization
+
+Two standalone scripts are available for generating t-SNE and UMAP visualizations of learned feature representations.
+
+### visualize_tsne.py
+
+Generate t-SNE embeddings for both teacher and student models.
+
+#### Student Model Example:
+```bash
+python scripts/kaggle/visualize_tsne.py \
+  --csv /kaggle/working/kd-research/dataframes/kaggle-adaptive_median_gpu.csv \
+  --base_path /kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu \
+  --model_path /kaggle/working/kd_results/models/resnet-152/kl_bce/seed_42/student_seed_42.pth \
+  --model_type student \
+  --output_dir /kaggle/working/embeddings \
+  --seed 42
+```
+
+#### Teacher Model Example:
+```bash
+python scripts/kaggle/visualize_tsne.py \
+  --csv /kaggle/working/kd-research/dataframes/kaggle-adaptive_median_gpu.csv \
+  --base_path /kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu \
+  --model_path /kaggle/working/kd_results/models/efficientnet-b7/kl_bce/seed_42/teacher_seed_42.pth \
+  --model_type teacher \
+  --architecture efficientnet-b7 \
+  --output_dir /kaggle/working/embeddings \
+  --seed 42
+```
+
+#### t-SNE Hyperparameters:
+- `--perplexity` (default: 30): Balance between local and global structure
+- `--learning_rate` (default: 200.0): Optimization learning rate
+- `--n_iter` (default: 1000): Number of iterations
+- `--max_samples` (default: 2000): Maximum samples to visualize
+
+### visualize_umap.py
+
+Generate UMAP embeddings for both teacher and student models.
+
+#### Student Model Example:
+```bash
+python scripts/kaggle/visualize_umap.py \
+  --csv /kaggle/working/kd-research/dataframes/kaggle-adaptive_median_gpu.csv \
+  --base_path /kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu \
+  --model_path /kaggle/working/kd_results/models/swin-tiny/kl_l2_bce/seed_42/student_seed_42.pth \
+  --model_type student \
+  --output_dir /kaggle/working/embeddings \
+  --seed 42
+```
+
+#### Teacher Model Example:
+```bash
+python scripts/kaggle/visualize_umap.py \
+  --csv /kaggle/working/kd-research/dataframes/kaggle-adaptive_median_gpu.csv \
+  --base_path /kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu \
+  --model_path /kaggle/working/kd_results/models/vit-b-16/kl_contrastive_l2_bce/seed_42/teacher_seed_42.pth \
+  --model_type teacher \
+  --architecture vit-b-16 \
+  --output_dir /kaggle/working/embeddings \
+  --seed 42
+```
+
+#### UMAP Hyperparameters:
+- `--n_neighbors` (default: 15): Balance between local vs global structure
+- `--min_dist` (default: 0.1): Minimum distance between points (tightness)
+- `--metric` (default: 'euclidean'): Distance metric ('euclidean', 'manhattan', 'cosine', 'correlation')
+- `--max_samples` (default: 2000): Maximum samples to visualize
+
+### Class Labeling
+
+Both scripts automatically visualize 4 distinct classes based on fire/smoke combinations:
+
+1. **No Fire, No Smoke** (Blue circles)
+2. **Fire Only** (Red squares)
+3. **Smoke Only** (Gray triangles)
+4. **Fire & Smoke** (Orange diamonds)
+
+### Batch Visualization
+
+Generate embeddings for all models in a session:
+
+```python
+import os
+models_dir = "/kaggle/working/kd_results/models"
+output_dir = "/kaggle/working/embeddings"
+
+# Define all combinations
+teachers = ['resnet-152', 'efficientnet-b7', 'swin-tiny', 'vit-b-16']
+losses = ['kl_bce', 'kl_l2_bce', 'kl_contrastive_l2_bce']
+seed = 42
+
+for teacher in teachers:
+    for loss in losses:
+        model_dir = f"{models_dir}/{teacher}/{loss}/seed_{seed}"
+        
+        # Student t-SNE
+        !python scripts/kaggle/visualize_tsne.py \
+            --csv /kaggle/working/kd-research/dataframes/kaggle-adaptive_median_gpu.csv \
+            --base_path /kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu \
+            --model_path {model_dir}/student_seed_{seed}.pth \
+            --model_type student \
+            --output_dir {output_dir}/{teacher}/{loss} \
+            --seed {seed}
+        
+        # Teacher UMAP
+        !python scripts/kaggle/visualize_umap.py \
+            --csv /kaggle/working/kd-research/dataframes/kaggle-adaptive_median_gpu.csv \
+            --base_path /kaggle/input/flame2/adaptive-median-gpu/adaptive-median-gpu \
+            --model_path {model_dir}/teacher_seed_{seed}.pth \
+            --model_type teacher \
+            --architecture {teacher} \
+            --output_dir {output_dir}/{teacher}/{loss} \
+            --seed {seed}
+```
+
+---
+
 ## 📧 Support
 
 For issues specific to this pipeline, check the main repository README or open an issue on GitHub.
