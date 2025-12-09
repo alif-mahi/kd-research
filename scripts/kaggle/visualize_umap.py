@@ -95,26 +95,22 @@ def extract_features(model, dataloader, device, model_type='teacher', max_sample
     
     with torch.no_grad():
         for batch_idx, batch_data in enumerate(dataloader):
+            # Unpack batch based on model type
             if model_type == 'teacher':
-                rgb, ir, labels = batch_data
+                rgb, ir, batch_labels = batch_data
                 rgb = rgb.to(device)
                 ir = ir.to(device)
-            else:  # student
-                rgb, labels = batch_data
-                rgb = rgb.to(device)
-            
-            labels = labels.to(device)
-            
-            # Extract features (before final classification layer)
-            if model_type == 'teacher':
-                # Get the penultimate layer features
+                # Extract features from teacher
                 features = model.get_features(rgb, ir)
             else:  # student
-                # Get features before final classification
+                rgb, batch_labels = batch_data
+                rgb = rgb.to(device)
+                # Extract features from student
                 features = model.get_features(rgb)
             
+            # Store features and labels (labels stay on CPU, don't move to device)
             all_features.append(features.cpu().numpy())
-            all_labels.append(labels.cpu().numpy())
+            all_labels.append(batch_labels.numpy())  # Labels are already on CPU
             
             sample_count += features.shape[0]
             
