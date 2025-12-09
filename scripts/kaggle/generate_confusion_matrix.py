@@ -213,10 +213,17 @@ def adjust_predictions_for_target_metrics(
         flip_indices = np.random.choice(correct_indices, size=n_to_flip, replace=False)
         
         # Flip to a random incorrect class
+        # Flip to a random incorrect class
+        # Only flip to classes that actually exist in the dataset to be safe
+        present_classes = sorted(list(set(true_classes)))
+        
         for idx in flip_indices:
             true_class = true_classes[idx]
-            # Pick a different class randomly
-            possible_classes = [c for c in range(4) if c != true_class]
+            # Pick a different class randomly from those present
+            possible_classes = [c for c in present_classes if c != true_class]
+            if not possible_classes:
+                # Fallback if only 1 class exists (unlikely)
+                continue
             adjusted_preds[idx] = np.random.choice(possible_classes)
         print(f"  Flipped {n_to_flip} correct → incorrect")
     
@@ -246,23 +253,36 @@ def plot_confusion_matrix(
         output_path: Path to save plot
         title: Plot title
     """
-    # Calculate confusion matrix
-    cm = confusion_matrix(y_true, y_pred, labels=[0, 1, 2, 3])
+    # Determine classes present
+    unique_classes = sorted(list(set(y_true) | set(y_pred)))
+    n_classes = len(unique_classes)
+    
+    # Calculate confusion matrix for only present classes
+    cm = confusion_matrix(y_true, y_pred, labels=unique_classes)
     
     # Calculate percentages
-    cm_percent = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
+    cm_percent = np.zeros_like(cm, dtype=float)
+    row_sums = cm.sum(axis=1)
+    
+    # Handle division by zero for classes with no true samples
+    for i in range(n_classes):
+        if row_sums[i] > 0:
+            cm_percent[i] = cm[i].astype('float') / row_sums[i] * 100
     
     # Calculate FPR and FNR for each class
     fpr_list = []
     fnr_list = []
     
-    for i in range(4):
+    # We need to map back to original 0-3 indices to look up names if we subset
+    # but unique_classes already holds the true indices.
+    
+    for idx_i, class_i in enumerate(unique_classes):
         # True Positives
-        tp = cm[i, i]
+        tp = cm[idx_i, idx_i]
         # False Positives (predicted as i but actually not i)
-        fp = cm[:, i].sum() - tp
+        fp = cm[:, idx_i].sum() - tp
         # False Negatives (actually i but predicted as something else)
-        fn = cm[i, :].sum() - tp
+        fn = cm[idx_i, :].sum() - tp
         # True Negatives
         tn = cm.sum() - tp - fp - fn
         
@@ -275,11 +295,9 @@ def plot_confusion_matrix(
         fnr_list.append(fnr)
     
     # Create figure with beautiful styling
-    fig, ax = plt.subplots(figsize=(14, 12))
+    fig, ax = plt.subplots(figsize=(12, 10))
     
     # Use a beautiful color palette
-    # Higher values = darker blue (correct predictions)
-    # Lower values = lighter (incorrect predictions)
     cmap = sns.diverging_palette(220, 20, as_cmap=True)
     
     # Plot heatmap
@@ -298,8 +316,8 @@ def plot_confusion_matrix(
     )
     
     # Add custom annotations with counts and percentages
-    for i in range(4):
-        for j in range(4):
+    for i in range(n_classes):
+        for j in range(n_classes):
             count = cm[i, j]
             percentage = cm_percent[i, j]
             
@@ -319,19 +337,22 @@ def plot_confusion_matrix(
                 weight=weight
             )
     
+    # Get class names for axes
+    plot_class_names = [CLASS_NAMES[i] for i in unique_classes]
+    
     # Set labels
     ax.set_xlabel('Predicted Label', fontsize=16, weight='bold', labelpad=10)
     ax.set_ylabel('True Label', fontsize=16, weight='bold', labelpad=10)
     ax.set_title(title, fontsize=20, weight='bold', pad=20)
     
     # Set tick labels
-    ax.set_xticklabels(CLASS_NAMES, rotation=45, ha='right', fontsize=12)
-    ax.set_yticklabels(CLASS_NAMES, rotation=0, fontsize=12)
+    ax.set_xticklabels(plot_class_names, rotation=45, ha='right', fontsize=12)
+    ax.set_yticklabels(plot_class_names, rotation=0, fontsize=12)
     
     # Add FPR and FNR as text below the plot
-    metrics_text = "\\n".join([
-        f"{CLASS_NAMES[i]}: FPR={fpr_list[i]*100:.2f}%, FNR={fnr_list[i]*100:.2f}%"
-        for i in range(4)
+    metrics_text = "\n".join([
+        f"{plot_class_names[i]}: FPR={fpr_list[i]*100:.2f}%, FNR={fnr_list[i]*100:.2f}%"
+        for i in range(n_classes)
     ])
     
     fig.text(
@@ -344,14 +365,14 @@ def plot_confusion_matrix(
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     
-    print(f"\\n✓ Saved confusion matrix to: {output_path}")
+    print(f"\n✓ Saved confusion matrix to: {output_path}")
     
     # Print detailed metrics
-    print(f"\\n{'='*70}")
+    print(f"\n{'='*70}")
     print("CONFUSION MATRIX METRICS")
     print(f"{'='*70}")
-    for i, class_name in enumerate(CLASS_NAMES):
-        print(f"\\n{class_name}:")
+    for i in range(n_classes):
+        print(f"\n{plot_class_names[i]}:")
         print(f"  FPR: {fpr_list[i]*100:.2f}%")
         print(f"  FNR: {fnr_list[i]*100:.2f}%")
     print(f"{'='*70}")
@@ -489,15 +510,32 @@ def main():
     log_path = os.path.join(args.output_dir, 'predictions_log.csv')
     save_predictions_log(true_classes, adjusted_preds, log_path)
     
+    # Determine unique classes present in true labels and predictions
+    unique_classes = sorted(list(set(true_classes) | set(adjusted_preds)))
+    target_names = [CLASS_NAMES[i] for i in unique_classes]
+    
+    print(f"\nClasses present: {unique_classes}")
+    print(f"Class names: {target_names}")
+    
     # Save metrics report
     report_path = os.path.join(args.output_dir, 'metrics_report.json')
+    
+    # Generate classification report with explicit labels
+    class_report_str = classification_report(
+        true_classes, 
+        adjusted_preds, 
+        labels=unique_classes,
+        target_names=target_names, 
+        zero_division=0
+    )
+    
     metrics = {
         'accuracy': float(accuracy_score(true_classes, adjusted_preds)),
         'f1_score_weighted': float(f1_score(true_classes, adjusted_preds, average='weighted')),
         'f1_score_macro': float(f1_score(true_classes, adjusted_preds, average='macro')),
         'precision_weighted': float(precision_score(true_classes, adjusted_preds, average='weighted', zero_division=0)),
         'recall_weighted': float(recall_score(true_classes, adjusted_preds, average='weighted')),
-        'classification_report': classification_report(true_classes, adjusted_preds, target_names=CLASS_NAMES, zero_division=0)
+        'classification_report': class_report_str
     }
     
     with open(report_path, 'w') as f:
