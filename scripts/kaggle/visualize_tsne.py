@@ -21,11 +21,14 @@ from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
 from typing import Tuple, List
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add scripts directory to path for imports
+scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if scripts_dir not in sys.path:
+    sys.path.insert(0, scripts_dir)
 
-from components.dataset import FireSmokeDataset, create_stratified_splits
+from components.dataset import FireSmokeDataset
 from components.student_model import LightweightStudentCNN
+from components.video_aware_split import create_video_aware_splits
 
 
 def load_teacher_model(architecture: str, num_classes: int = 2):
@@ -291,13 +294,13 @@ def main():
     
     # Load dataset
     print("Loading dataset...")
-    train_df, val_df, test_df = create_stratified_splits(
+    train_df, val_df, test_df = create_video_aware_splits(
         args.csv,
         train_ratio=0.7,
         val_ratio=0.15,
         test_ratio=0.15,
         seed=args.seed,
-        use_video_aware=True
+        verbose=True
     )
     
     # Create test dataset
