@@ -148,7 +148,7 @@ def create_stratified_splits(
     """
     if use_video_aware:
         # Use video-aware splitting to prevent temporal leakage
-        from scripts.components.video_aware_split import create_video_aware_splits
+        from .video_aware_split import create_video_aware_splits
         
         # All ratios are now absolute and should sum to ~1.0
         # Default: train=0.7, val=0.15, test=0.15
