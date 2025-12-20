@@ -73,7 +73,7 @@ def train_single_seed(
     
     train_df, val_df, test_df = create_stratified_splits(
         csv_path,
-        train_ratio=0.70,
+        train_ratio=0.7,
         val_ratio=0.15,
         test_ratio=0.15,
         seed=seed
