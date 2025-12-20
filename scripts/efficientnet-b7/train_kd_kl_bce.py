@@ -145,6 +145,12 @@ def train_single_seed(
         title=f'EfficientNet-B7 Teacher Training (Seed {seed})'
     )
     
+    # Minimize memory usage before loading everything again
+    del teacher_trainer
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
+    
     # =========================================================================
     # STUDENT TRAINING
     # =========================================================================
