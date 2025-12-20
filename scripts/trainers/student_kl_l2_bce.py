@@ -195,6 +195,11 @@ class StudentTrainer_KL_L2_BCE:
             
             # Get teacher logits and features (no grad)
             with torch.no_grad():
+                # Cast inputs to half if teacher is half
+                if next(self.teacher.parameters()).dtype == torch.float16:
+                    rgb_teacher = rgb_teacher.half()
+                    ir_teacher = ir_teacher.half()
+                
                 teacher_logits = self.teacher(rgb_teacher, ir_teacher)
                 teacher_features = self.teacher.get_features(rgb_teacher, ir_teacher)
             

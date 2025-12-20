@@ -167,6 +167,8 @@ def train_single_seed(
     # Load best teacher for KD
     teacher_model.load_state_dict(torch.load(teacher_save_path))
     teacher_model.eval()
+    teacher_model.half()  # Convert to FP16 to save memory
+    print("Converted teacher model to FP16 for memory efficiency")
     
     student_trainer = StudentTrainer(
         student_model,
